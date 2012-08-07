@@ -137,6 +137,7 @@ def pickup_who(nick, msg):
         for i in pickups:
             temp = "\x0310{}: \x0F{} ".format(i, ", ".join(pickups[i]))
             who_list += temp
+            valid = True
 
     elif games[1] in pickups:
         for i in games:
