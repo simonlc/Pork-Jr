@@ -130,26 +130,23 @@ Captains:\x0F {}".format(pickup_server, ", ".join(pickups[pickup]), captains), c
     topic_refresh(channel, topic_mask)
 
 def pickup_who(nick, msg):
+    """Sends a notice to the user listing the added players."""
     games = msg.split()
     who_list = ""
     valid = False
+
     if len(games) == 1:
         for i in pickups:
-            temp = "\x0310{}: \x0F{} ".format(i, ", ".join(pickups[i]))
+            temp = "\x0310{}: \x0F{} ".format(i, "/".join(pickups[i]))
             who_list += temp
-            valid = True
 
     elif games[1] in pickups:
         for i in games:
             if i in pickups:
-                temp = "\x0310{}: \x0F{} ".format(i, ", ".join(pickups[i]))
+                temp = "\x0310{}: \x0F{} ".format(i, "/".join(pickups[i]))
                 who_list += temp
-                valid = True
 
-    if valid:
-        send_notice(who_list, nick)
-    else:
-        send_notice("No one added.", nick)
+    send_notice(who_list, nick)
 
 def topic_refresh(channel, topic_mask):
     #TODO: Only refresh if changed
@@ -227,3 +224,7 @@ while True:
             send_raw("PONG {}".format(line[5:]))
         else:
             print(line)
+
+        #TODO make this variable
+        if "332 porkjr #warsow.na" and " | " in line:
+            topic_mask = line[line.find(" | ") + 3:]
