@@ -14,8 +14,7 @@ from random import sample
 irc_host = "gameservers.nj.us.quakenet.org"
 irc_port = 6667
 irc_nick = "porkjr"
-#irc_pswd = "xk!H54CMRg"
-irc_pswd = "dxk@kd34RFd"
+irc_pswd = "xk!H54CMRg"
 irc_mode = 8
 irc_realname = "Pork Jr."
 irc_owner = ("simonlc", "~Simon@clownFart.users.quakenet.org")
