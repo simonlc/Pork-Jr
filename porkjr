@@ -8,6 +8,7 @@ Please refer to the README.md file for usage instructions.
 """
 
 import socket
+from random import sample
 from time import sleep
 
 irc_host = "gameservers.nj.us.quakenet.org"
@@ -27,7 +28,7 @@ pickup_slots = {
 'ctf'    : 8,
 'ca'     : 8,
 'tdm'    : 8,
-'tdm2v2' : 4}
+'tdm2v2' : 2}
 pickup_games = {
 'bomb'   : {},
 'ctf'    : {},
@@ -222,7 +223,7 @@ def topic_refresh(mask):
 
 # KOTH Bot Functions
 
-def command_signup(nick, host)
+def command_signup(nick, host):
     for i in koth_queue:
         if host not in koth_queue[i]:
             koth_queue.append((nick, host))
