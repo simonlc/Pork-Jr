@@ -119,7 +119,7 @@ def is_owner(nick, host):
     if (nick, host) == irc_owner:
         return True
     else:
-        return False
+        send_notice("You don't have enough rights for this command.", nick)
 
 def is_op(nick, host):
     """Test if operator."""
