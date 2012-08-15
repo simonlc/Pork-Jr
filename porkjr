@@ -9,7 +9,6 @@ Please refer to the README.md file for usage instructions.
 
 import socket
 from time import sleep
-from random import sample
 
 irc_host = "gameservers.nj.us.quakenet.org"
 irc_port = 6667
@@ -20,8 +19,8 @@ irc_realname = "Pork Jr."
 irc_owner = ("simonlc", "~Simon@clownFart.users.quakenet.org")
 irc_channels = ["#warsow.na"]
 irc_home = irc_channels[0]
-mask = "Welcome to #warsow.na!"
 
+mask = "Welcome to #warsow.na!"
 pickup_server = "connect darkbox.us:44430;password pickupftw"
 pickup_slots = {
 'bomb'   : 10,
@@ -29,13 +28,14 @@ pickup_slots = {
 'ca'     : 8,
 'tdm'    : 8,
 'tdm2v2' : 4}
-
 pickup_games = {
 'bomb'   : {},
 'ctf'    : {},
 'ca'     : {},
 'tdm'    : {},
 'tdm2v2' : {}}
+
+koth_queue = []
 
 def main():
     """This is the main fuction of the program. It receives the data, replies
@@ -44,7 +44,7 @@ def main():
 
     connected = False
     while True:
-        data = irc.recv(1024).decode().split("\n")
+        data = irc.recv(1024).decode('ascii', 'ignore').split("\n")
 
         for line in data:
             l=line.rstrip().split(" ")
@@ -74,6 +74,21 @@ def main():
                     nick, host = l[0].lstrip(":").split("!")
                     nick_change(host, l[2][1:])
         sleep(1)
+
+# Command Parse
+def parse_msg(line):
+    global mask
+    nick, host = line[0].lstrip(":").split("!")
+    if line[3][:2] in (":.", ":!"):
+        if line[3][2:] == "add":
+            command_add(nick, host, line[4:len(line)])
+        if line[3][2:] == "remove":
+            command_remove(nick, host, line[4:len(line)])
+        if line[3][2:] == "who":
+            command_who(nick, line[4:len(line)])
+        if line[3][2:] == "topic" and is_owner(nick, host):
+            mask = " ".join(line[4:len(line)])
+            topic_refresh(mask)
 
 # Helper Functions
 def send_raw(string):
@@ -108,22 +123,6 @@ def is_owner(nick, host):
 def is_op(nick, host):
     """Test if operator."""
     return False
-
-# -----
-
-def parse_msg(line):
-    global mask
-    nick, host = line[0].lstrip(":").split("!")
-    if line[3][:2] in (":.", ":!"):
-        if line[3][2:] == "add":
-            command_add(nick, host, line[4:len(line)])
-        if line[3][2:] == "remove":
-            command_remove(nick, host, line[4:len(line)])
-        if line[3][2:] == "who":
-            command_who(nick, line[4:len(line)])
-        if line[3][2:] == "topic" and is_owner(nick, host):
-            mask = " ".join(line[4:len(line)])
-            topic_refresh(mask)
 
 # PUG Bot Functions
 
@@ -211,6 +210,7 @@ Captains:\x0F {}".format(pickup_server, ", ".join(f(pickup_games[pickup])), capt
 
 def topic_refresh(mask):
     #TODO: Only refresh if changed
+    #TODO: get old topic after reconnecting
     #TODO: Format this better
     topic = "\x0310> Bomb\x0F " + str(len(pickup_games['bomb'])) +"/"+ str(pickup_slots['bomb']) + \
             ",\x0310 CTF\x0F " + str(len(pickup_games['ctf'])) +"/"+ str(pickup_slots['ctf']) + \
@@ -219,6 +219,13 @@ def topic_refresh(mask):
             ",\x0310 TDM2v2\x0F " + str(len(pickup_games['tdm2v2'])) +"/"+ str(pickup_slots['tdm2v2']) + \
             " | " + mask
     send_qtopic(topic)
+
+# KOTH Bot Functions
+
+def command_signup(nick, host)
+    for i in koth_queue:
+        if host not in koth_queue[i]:
+            koth_queue.append((nick, host))
 
 # Connect to IRC
 irc = socket.socket()
