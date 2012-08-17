@@ -40,7 +40,7 @@ koth_queue = []
 
 def main():
     """This is the main fuction of the program. It receives the data, replies
-    to pings, send initial auth and channel info, and parses the recieved data
+    to pings, sends initial auth and channel info, and parses the received data
     for important information."""
 
     connected = False
