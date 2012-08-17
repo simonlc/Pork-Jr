@@ -10,216 +10,122 @@ Please refer to the README.md file for usage instructions.
 import socket
 from random import sample
 from time import sleep
+from importlib import import_module
+from imp import reload
 
-irc_host = "gameservers.nj.us.quakenet.org"
-irc_port = 6667
-irc_nick = "porkjr"
-irc_pswd = "xk!H54CMRg"
-irc_mode = 8
-irc_realname = "Pork Jr."
-irc_owner = ("simonlc", "~Simon@clownFart.users.quakenet.org")
-irc_channels = ["#warsow.na"]
-irc_home = irc_channels[0]
+modules = {}
 
-mask = "Welcome to #warsow.na!"
-pickup_server = "connect darkbox.us:44430;password pickupftw"
-pickup_slots = {
-'bomb'   : 10,
-'ctf'    : 8,
-'ca'     : 8,
-'tdm'    : 8,
-'tdm2v2' : 2}
-pickup_games = {
-'bomb'   : {},
-'ctf'    : {},
-'ca'     : {},
-'tdm'    : {},
-'tdm2v2' : {}}
+def add_module(name):
+    modules[name] = import_module("modules." + name)
+
+def reload_module(name):
+    if name in modules:
+        modules[name] = reload(modules[name])
+        return True
+    return False
+
+class IRC:
+    """IRC wrapper class"""
+
+    def __init__(self):
+        self.socket = None
+        self.nick = "porkjr"
+        self.password = ""
+        self.mode = 8
+        self.realname = "Pork Jr."
+        self.owner = ("simonlc", "~Simon@clownFart.users.quakenet.org")
+        self.channels = ["#warsow.na"]
+        self.home = self.channels[0]
+        self.connected = False
+        self.authed = False
+
+    def send(self, string):
+        """Converts a string and formats it to be sent to the socket."""
+        data = (string + "\r\n").encode()
+        self.socket.send(data)
+
+    def privmsg(self, msg, channel):
+        """Sends a message to channel or user."""
+        data = ("PRIVMSG {} :{}".format(channel, msg))
+        self.send(data)
+
+    def notice(self, msg, channel):
+        """Sends a notice to user or channel."""
+        data = ("NOTICE {} :{}".format(channel, msg))
+        self.send(data)
+
+    def qtopic(self, topic):
+        """Set the topic with a Q command, requires +t flag."""
+        data = ("PRIVMSG Q :SETTOPIC {} {}".format(self.home, topic))
+        self.send(data)
+
+    def connect(self, host, port = 6667):
+        self.socket = socket.socket()
+        self.socket.connect((host, port))
+        self.send("NICK {}".format(self.nick))
+        self.send("USER {} {} * :{}".format(self.nick, self.mode, self.realname))
+
+    def recv(self, bufsize):
+        return self.socket.recv(bufsize)
+
+    def auth(self):
+        if len(self.password):
+            self.send("AUTH {} {}".format(self.nick, self.password))
+            # TODO: check for confirmation of auth from server
+            self.authed = True
+        self.send("MODE {} +x".format(self.nick))
+        self.send("JOIN {}".format(", ".join(self.channels)))
+        self.connected = True
 
 koth_queue = []
 
 def main():
     """This is the main fuction of the program. It receives the data, replies
-    to pings, send initial auth and channel info, and parses the recieved data
+    to pings, sends initial auth and channel info, and parses the received data
     for important information."""
 
-    connected = False
+    add_module("pickup")
+
+    irc = IRC()
+    irc.connect("servercentral.il.us.quakenet.org")
+
     while True:
-        data = irc.recv(1024).decode('ascii', 'ignore').split("\n")
+        data = irc.recv(1024).decode("ascii", "ignore").split("\n")
 
         for line in data:
-            l=line.rstrip().split(" ")
+            l = line.rstrip().split(" ")
 
             if l[0] == "PING":
-                send_raw("PONG {}".format(l[1]))
-            else:
+                irc.send("PONG {}".format(l[1]))
+            elif len(line):
                 print(line)
 
             if len(l) > 2:
-                if not connected and l[1] == "221":
+                if not irc.connected and l[1] == "376":
                     # We're connected, so auth and join channels.
-                    send_raw("AUTH {} {}".format(irc_nick, irc_pswd))
-                    send_raw("MODE {} +x".format(irc_nick))
-                    send_raw("JOIN {}".format(", ".join(irc_channels)))
-                    connected = True
+                    # NOTE: 376 is "end of motd" (byce)
+                    irc.auth()
 
-                if l[1] == "PRIVMSG" and l[2] == irc_home:
-                    parse_msg(l)
-                elif l[1] == "PART" and l[2] == irc_home:
+                if l[1] == "PRIVMSG" and l[2] == irc.home \
+                    and l[3][:2] in (":.", ":!"):
                     nick, host = l[0].lstrip(":").split("!")
-                    command_remove(nick, host, [])
-                elif l[1] == "QUIT":
-                    nick, host = l[0].lstrip(":").split("!")
-                    command_remove(nick, host, [])
-                elif l[1] == "NICK":
-                    nick, host = l[0].lstrip(":").split("!")
-                    nick_change(host, l[2][1:])
+                    if l[3][2:] == "reload" and (nick, host) == irc.owner:
+                        if len(l) < 5:
+                            for name, module in modules.items():
+                                reload_module(name)
+                                module.module_reloaded(irc)
+                            irc.privmsg("reloaded all modules", irc.home)
+                        else:
+                            module = l[4]
+                            if reload_module(module):
+                                modules[module].module_reloaded(irc)
+                                irc.privmsg("reloaded {} module".format(module),
+                                    irc.home)
+
+                for m in modules.values():
+                    m.module_update(irc, l)
+
         sleep(1)
-
-# Command Parse
-def parse_msg(line):
-    global mask
-    nick, host = line[0].lstrip(":").split("!")
-    if line[3][:2] in (":.", ":!"):
-        if line[3][2:] == "add":
-            command_add(nick, host, line[4:len(line)])
-        if line[3][2:] == "remove":
-            command_remove(nick, host, line[4:len(line)])
-        if line[3][2:] == "who":
-            command_who(nick, line[4:len(line)])
-        if line[3][2:] == "topic" and is_owner(nick, host):
-            mask = " ".join(line[4:len(line)])
-            topic_refresh(mask)
-
-# Helper Functions
-def send_raw(string):
-    """Converts a string and formats it to be sent to the socket."""
-    data = (string + "\r\n").encode()
-    irc.send(data)
-
-def send_say(msg, channel):
-    """Sends a message to channel or user."""
-    data = ("PRIVMSG {} :{}".format(channel, msg))
-    send_raw(data)
-
-def send_notice(msg, channel):
-    """Sends a notice to user or channel."""
-    data = ("NOTICE {} :{}".format(channel, msg))
-    send_raw(data)
-
-def send_qtopic(topic):
-    """Set the topic with a Q command, requires +t flag."""
-    data = ("PRIVMSG Q :SETTOPIC {} {}".format(irc_home, topic))
-    send_raw(data)
-
-# -----
-
-def is_owner(nick, host):
-    """Test if owner."""
-    if (nick, host) == irc_owner:
-        return True
-    else:
-        send_notice("You don't have enough rights for this command.", nick)
-
-def is_op(nick, host):
-    """Test if operator."""
-    return False
-
-# PUG Bot Functions
-
-def f(d):
-    """Return a list of values from a dict."""
-    values = d.values()
-    return list(values)
-
-def command_add(nick, host, games):
-    """Add to pickups."""
-    valid = False
-    if len(games) == 0:
-        for i in pickup_games:
-            if host not in pickup_games[i]:
-                pickup_games[i][host] = nick
-                valid = True
-
-    elif games[0] in pickup_games:
-        for i in games:
-            if i in pickup_games and nick not in pickup_games[i]:
-                pickup_games[i][host] = nick
-                valid = True
-    is_full()
-    if valid:
-        # TODO If a pickup was started make this not exec
-        topic_refresh(mask)
-
-def command_remove(nick, host, games):
-    #TODO: make auto remove if player leaves
-    valid = False
-    while True:
-        if len(games) == 0:
-            for i in pickup_games:
-                if host in pickup_games[i]:
-                    del pickup_games[i][host]
-                    valid = True
-            break
-        for i in games:
-            if i in pickup_games and host in pickup_games[i]:
-                del pickup_games[i][host]
-                valid = True
-        break
-    if valid:
-        topic_refresh(mask)
-
-def command_who(nick, games):
-    """Sends a notice to the user listing the added players."""
-    who_list = ""
-
-    if len(games) == 0:
-        for i in pickup_games:
-            temp = "\x0310{}: \x0F{} ".format(i, "/".join(f(pickup_games[i])))
-            who_list += temp
-
-    elif games[0] in pickup_games:
-        for i in games:
-            if i in pickup_games:
-                temp = "\x0310{}: \x0F{} ".format(i, "/".join(f(pickup_games[i])))
-                who_list += temp
-
-    send_notice(who_list, nick)
-
-def nick_change(host, new_nick):
-    """Update nicks in pickup_games."""
-    for i in pickup_games:
-        if host in pickup_games[i]:
-            pickup_games[i][host] = new_nick
-
-def is_full():
-    for i in pickup_games:
-        if len(pickup_games[i]) == pickup_slots[i]:
-            pickup_start(i)
-
-def pickup_start(pickup):
-    captains = ", ".join(sample(f(pickup_games[pickup]), 2))
-    send_say("\x0310Game ready @\x0F {}\x0310 - Players:\x0F {}\x0310 \
-Captains:\x0F {}".format(pickup_server, ", ".join(f(pickup_games[pickup])), captains), irc_home)
-    # Remove players that are playing in this pickup from the lists.
-    for i in pickup_games[pickup].copy():
-        for j in pickup_games:
-            if i in pickup_games[j]:
-                del pickup_games[j][i]
-    pickup_games[pickup] = {}
-    topic_refresh(mask)
-
-def topic_refresh(mask):
-    #TODO: Only refresh if changed
-    #TODO: get old topic after reconnecting
-    #TODO: Format this better
-    topic = "\x0310> Bomb\x0F " + str(len(pickup_games['bomb'])) +"/"+ str(pickup_slots['bomb']) + \
-            ",\x0310 CTF\x0F " + str(len(pickup_games['ctf'])) +"/"+ str(pickup_slots['ctf']) + \
-            ",\x0310 CA\x0F " + str(len(pickup_games['ca'])) +"/"+ str(pickup_slots['ca']) + \
-            ",\x0310 TDM\x0F " + str(len(pickup_games['tdm'])) +"/"+ str(pickup_slots['tdm']) + \
-            ",\x0310 TDM2v2\x0F " + str(len(pickup_games['tdm2v2'])) +"/"+ str(pickup_slots['tdm2v2']) + \
-            " | " + mask
-    send_qtopic(topic)
 
 # KOTH Bot Functions
 
@@ -228,10 +134,5 @@ def command_signup(nick, host):
         if host not in koth_queue[i]:
             koth_queue.append((nick, host))
 
-# Connect to IRC
-irc = socket.socket()
-irc.connect((irc_host, irc_port))
-send_raw("NICK {}".format(irc_nick))
-send_raw("USER {} {} * :{}".format(irc_nick, irc_mode, irc_realname))
-
-main()
+if __name__ == "__main__":
+    main()
