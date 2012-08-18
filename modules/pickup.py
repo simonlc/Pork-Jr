@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+
+"""
+Pickup game (PUG) module for Pork Jr.
+
+Authors: Simon Laroche, byce
+"""
+
+from random import sample
+
 topic = "Welcome to #warsow.na!"
 pickup_server = "connect darkbox.us:44430;password pickupftw"
 
@@ -91,7 +101,6 @@ def command_add(irc, nick, host, games):
         refresh_topic(irc)
 
 def command_remove(irc, nick, host, games):
-    #TODO: make auto remove if player leaves
     valid = False
     while True:
         if len(games) == 0:

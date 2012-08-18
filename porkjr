@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 
 """
+Pork Jr., the simple, modular IRC bot.
+
 This bot is designed to work on QuakeNet. Without much modification, it can be
 made to work on any IRC netowrk.
 
 Please refer to the README.md file for usage instructions.
+
+Authors: Simon Laroche, byce 
 """
 
 import socket
-from random import sample
 from time import sleep
 from importlib import import_module
 from imp import reload
@@ -60,31 +63,30 @@ class IRC:
         self.send(data)
 
     def connect(self, host, port = 6667):
+        """Creates and connects to socket, and sends irc user info."""
         self.socket = socket.socket()
         self.socket.connect((host, port))
         self.send("NICK {}".format(self.nick))
         self.send("USER {} {} * :{}".format(self.nick, self.mode, self.realname))
 
     def recv(self, bufsize):
+        """Receives data from socket connection."""
         return self.socket.recv(bufsize)
 
     def auth(self):
+        """Sends auth info to server."""
         if len(self.password):
             self.send("AUTH {} {}".format(self.nick, self.password))
-            # TODO: check for confirmation of auth from server
+            # TODO: Check for confirmation of auth from server.
             self.authed = True
         self.send("MODE {} +x".format(self.nick))
         self.send("JOIN {}".format(", ".join(self.channels)))
         self.connected = True
 
-koth_queue = []
-
 def main():
-    """This is the main fuction of the program. It receives the data, replies
-    to pings, sends initial auth and channel info, and parses the received data
-    for important information."""
 
     add_module("pickup")
+    add_module("tier")
 
     irc = IRC()
     irc.connect("servercentral.il.us.quakenet.org")
@@ -114,25 +116,21 @@ def main():
                             for name, module in modules.items():
                                 reload_module(name)
                                 module.module_reloaded(irc)
-                            irc.privmsg("reloaded all modules", irc.home)
+                            irc.privmsg("Reloaded all modules.", irc.home)
                         else:
                             module = l[4]
                             if reload_module(module):
                                 modules[module].module_reloaded(irc)
-                                irc.privmsg("reloaded {} module".format(module),
+                                irc.privmsg("Reloaded {} module.".format(module),
                                     irc.home)
+                    elif l[3][2:] == "reload" and (nick, host) != irc.owner:
+                        irc.notice("You are not authorized to use this command.", nick)
+
 
                 for m in modules.values():
                     m.module_update(irc, l)
 
         sleep(1)
-
-# KOTH Bot Functions
-
-def command_signup(nick, host):
-    for i in koth_queue:
-        if host not in koth_queue[i]:
-            koth_queue.append((nick, host))
 
 if __name__ == "__main__":
     main()
