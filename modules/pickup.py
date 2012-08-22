@@ -6,10 +6,16 @@ Pickup game (PUG) module for Pork Jr.
 Authors: Simon Laroche, byce
 """
 
+"""
+TODO:
+ - Fetch old topic when reconnecting.
+ - Allow any op to change the topic.
+"""
+
 from random import sample
 
 topic = "Welcome to #warsow.na!"
-pickup_server = "connect darkbox.us:44430;password pickupftw"
+pickup_server = ("darkbox.us", "44440", "pickupftw")
 
 pickup_slots = {
     "bomb"   : 10,
@@ -135,9 +141,12 @@ def command_who(irc, nick, games):
 
     irc.notice(who_list, nick)
 
-def pickup_start(pickup):
+def pickup_start(irc, pickup):
+    """Initiates the pickup by notifying players, and selecting captains."""
+
     captains = ", ".join(sample(values(pickup_games[pickup]), 2))
-    irc.privmsg("\x0310Game ready @\x0F {}\x0310 - Players:\x0F {}\x0310 \
+
+    irc.privmsg("\x0310Game ready @\x0F connect {}:{};password {}\x0310 - Players:\x0F {}\x0310 \
 Captains:\x0F {}".format(pickup_server, ", ".join(values(pickup_games[pickup])), captains), irc.home)
     # Remove players that are playing in this pickup from the lists.
     for i in pickup_games[pickup].copy():
@@ -145,7 +154,7 @@ Captains:\x0F {}".format(pickup_server, ", ".join(values(pickup_games[pickup])),
             if i in pickup_games[j]:
                 del pickup_games[j][i]
     pickup_games[pickup] = {}
-    refresh_topic(mask)
+    refresh_topic(irc)
 
 def refresh_topic(irc):
     #TODO: Only refresh if changed
